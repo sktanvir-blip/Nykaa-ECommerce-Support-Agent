@@ -1,0 +1,3 @@
+# Warranty Terms by Product Category
+
+Eligible Electronics products carry a 12-month limited warranty covering manufacturing defects under the applicable warranty conditions. Eligible Home products carry a 6-month limited warranty for manufacturing defects. Beauty, Apparel, and Footwear products do not receive a standard manufacturer warranty under this support policy, although specific products may have separate coverage stated in their order information.

@@ -1,0 +1,3 @@
+# Loyalty Points Redemption Policy
+
+Eligible loyalty points can be redeemed against qualifying purchases when the account has at least 100 available points. Loyalty points cannot be converted directly into cash and may be excluded from selected products, promotional transactions, or other restricted orders. The points balance and applicable redemption value should be checked before placing the order.

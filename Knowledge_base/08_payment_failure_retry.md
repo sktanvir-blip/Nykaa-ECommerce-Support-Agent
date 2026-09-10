@@ -1,0 +1,3 @@
+# Payment Failure and Retry Policy
+
+If an online payment fails before an order is confirmed, the customer can retry the payment using an available payment method. A failed payment should not be treated as a confirmed order unless the order confirmation has been successfully generated. If the customer is charged but the order is not created, the payment should be checked for reversal or refund according to the applicable payment process.

@@ -1,0 +1,3 @@
+# Damaged Item Claim Process
+
+A customer who receives a visibly damaged product should report the issue within 48 hours of delivery through the support process. The customer may be asked to provide photographs of the damaged item, packaging, and relevant order details for verification. After verification, the support team may approve an eligible replacement, refund, or another appropriate resolution.

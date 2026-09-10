@@ -1,0 +1,3 @@
+# Customer Support Escalation Matrix
+
+Routine policy questions and simple order-information requests should normally be handled through standard support workflows. Cases involving significant delivery delays, high-value orders with unresolved issues, repeated failed resolutions, or suspected transaction problems should receive higher-priority review. Critical cases involving potential fraud, safety concerns, or repeated service failures should be escalated to the appropriate specialist support team.

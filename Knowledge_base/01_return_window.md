@@ -1,0 +1,3 @@
+# Return Window by Product Category
+
+Beauty products can be returned within 7 days of delivery when the product is unused and remains in its original packaging. Apparel and Footwear products can be returned within 15 days of delivery, subject to the applicable return conditions. Electronics and Home products have a 10-day return window when the item is eligible for return and the required accessories are included. Items marked as non-returnable in the order information are excluded from this policy.

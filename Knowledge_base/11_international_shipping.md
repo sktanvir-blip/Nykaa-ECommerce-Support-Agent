@@ -1,0 +1,3 @@
+# International Shipping Restrictions
+
+International shipping is available only to supported destinations and may be restricted for selected product categories. Products containing regulated ingredients, hazardous materials, or other restricted items may not be eligible for international delivery. Customers are responsible for applicable customs duties, taxes, and import requirements unless the order explicitly states otherwise.

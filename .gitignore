@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Virtual environment
+.venv/
+
+# Environment / secrets
+.env
+
+# Local Chroma database
+chroma_db/
+chroma_db_backup/
+
+# Logs
+logs/
+
+# IDE
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
