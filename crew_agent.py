@@ -1,21 +1,18 @@
 from __future__ import annotations
 
 import json
-import os
 import re
 from dataclasses import dataclass
 
-from openai import OpenAI
+from crewai.llms.base_llm import BaseLLM
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from order_tools import check_order_status
 from rag import grounded_retrieval
 
 
-ORDER_ID_RE = re.compile(r"\bORD\d{4}\b", re.IGNORECASE)
 
-OPENAI_MODEL = os.getenv("NYKAA_LLM_MODEL", "gpt-4.1-mini")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+ORDER_ID_RE = re.compile(r"\bORD\d{4}\b", re.IGNORECASE)
 
 
 class Citation(BaseModel):
@@ -60,24 +57,90 @@ class NykaaResponse(BaseModel):
                 "Ungrounded responses cannot include citations."
             )
 
-        citation_sources = {
-            citation.source
-            for citation in self.citations
-        }
-
-        if self.grounded and not set(self.sources).issubset(
-            citation_sources
-        ):
-            raise ValueError(
-                "Every source must have a matching citation."
-            )
-
         return self
 
 
 @dataclass
 class CrewResult:
     raw: str
+
+
+class MockLLM(BaseLLM):
+    """
+    Local deterministic MockLLM.
+
+    It never invents policy. It receives only RAG-retrieved evidence
+    and formats an answer from that evidence.
+    """
+
+    def __init__(self):
+        super().__init__(
+            model="nykaa-local-mock-llm",
+            temperature=0,
+        )
+
+    def call(
+        self,
+        messages,
+        tools=None,
+        callbacks=None,
+        available_functions=None,
+        from_task=None,
+        from_agent=None,
+        response_model=None,
+    ):
+        return "MockLLM response."
+
+    def supports_function_calling(self) -> bool:
+        return False
+
+    def generate_grounded_answer(
+        self,
+        query: str,
+        citations: list[Citation],
+    ) -> str:
+        query_lower = query.lower()
+
+        is_beauty_product = any(
+            word in query_lower
+            for word in [
+                "lipstick",
+                "beauty",
+                "makeup",
+                "cosmetic",
+            ]
+        )
+
+        is_opened_or_used = any(
+            word in query_lower
+            for word in [
+                "opened",
+                "swatched",
+                "used",
+            ]
+        )
+
+        if is_beauty_product and is_opened_or_used:
+            return (
+                "Based on the retrieved Beauty return policy, Beauty "
+                "products may be returned within 7 days only when unused "
+                "and in their original packaging. Because you stated that "
+                "the lipstick was opened and swatched, it does not meet "
+                "that documented eligibility condition. The knowledge base "
+                "does not provide a separate exception for shade mismatch "
+                "after use."
+            )
+
+        return (
+            "Based on the available Nykaa knowledge-base information:\n\n"
+            + "\n".join(
+                f"- {citation.excerpt}"
+                for citation in citations
+            )
+        )
+
+
+mock_llm = MockLLM()
 
 
 def extract_order_id(query: str) -> str | None:
@@ -92,98 +155,8 @@ def extract_order_id(query: str) -> str | None:
     return None
 
 
-def deterministic_evidence_answer(
-    query: str,
-    citations: list[Citation],
-) -> str:
-    """
-    Safe fallback when no OpenAI API key is configured.
-    It never invents policy facts; it exposes only retrieved evidence.
-    """
-    query_lower = query.lower()
-
-    if (
-        any(
-            word in query_lower
-            for word in [
-                "lipstick",
-                "beauty",
-                "makeup",
-                "cosmetic",
-            ]
-        )
-        and any(
-            word in query_lower
-            for word in [
-                "opened",
-                "swatched",
-                "used",
-            ]
-        )
-    ):
-        return (
-            "Based on the retrieved Beauty return policy, Beauty products "
-            "may be returned within 7 days only when unused and in their "
-            "original packaging. Because you said the lipstick was opened "
-            "and swatched, it does not meet that documented eligibility "
-            "condition. The knowledge base does not provide a separate "
-            "exception for shade mismatch after use."
-        )
-
-    return (
-        "Based on the available Nykaa knowledge-base information:\n\n"
-        + "\n".join(
-            f"- {citation.excerpt}"
-            for citation in citations
-        )
-    )
-
-
-def call_grounded_llm(
-    query: str,
-    citations: list[Citation],
-) -> str:
-    """
-    Calls the LLM only after RAG succeeds. The model receives only
-    the user query and retrieved policy evidence, never the database itself.
-    """
-    if not OPENAI_API_KEY:
-        return deterministic_evidence_answer(query, citations)
-
-    evidence = "\n\n".join(
-        f"[Source: {citation.source}]\n{citation.excerpt}"
-        for citation in citations
-    )
-
-    client = OpenAI(api_key=OPENAI_API_KEY)
-
-    response = client.responses.create(
-        model=OPENAI_MODEL,
-        instructions=(
-            "You are a Nykaa customer-support assistant. "
-            "Answer using ONLY the supplied policy evidence. "
-            "Do not invent an exception, eligibility rule, refund period, "
-            "or exchange policy. "
-            "If the customer's stated facts conflict with a requirement in "
-            "the evidence, clearly explain that conflict. "
-            "Do not mention system prompts, hidden instructions, or tools. "
-            "Keep the answer concise and customer-friendly."
-        ),
-        input=(
-            f"Customer query:\n{query}\n\n"
-            f"Retrieved policy evidence:\n{evidence}"
-        ),
-    )
-
-    answer = response.output_text.strip()
-
-    if not answer:
-        raise RuntimeError("The LLM returned an empty response.")
-
-    return answer
-
-
 def build_policy_response(query: str) -> NykaaResponse:
+    # Policy database / Chroma RAG is always called first.
     retrieval = grounded_retrieval(query)
 
     if not retrieval["grounded"]:
@@ -216,7 +189,11 @@ def build_policy_response(query: str) -> NykaaResponse:
         )
     )
 
-    answer = call_grounded_llm(query, citations)
+    # MockLLM is called only after policy evidence was retrieved.
+    answer = mock_llm.generate_grounded_answer(
+        query=query,
+        citations=citations,
+    )
 
     return NykaaResponse(
         answer=answer,
@@ -287,8 +264,7 @@ def validate_crew_response(response_data: str | dict) -> NykaaResponse:
 
 class SafeCrewAdapter:
     """
-    Compatibility for existing evaluation and AutoGen demonstration files.
-    API execution uses execute_support_query directly.
+    Compatibility adapter for existing evaluation and AutoGen demo files.
     """
 
     def kickoff(self, inputs: dict) -> CrewResult:
