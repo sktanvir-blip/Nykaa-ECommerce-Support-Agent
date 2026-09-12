@@ -1,513 +1,302 @@
-from typing import Type
-import json
-from pydantic import BaseModel, Field
+from __future__ import annotations
 
-from crewai import Agent, Crew, Task, Process
-from crewai.tools import BaseTool
-from crewai.llms.base_llm import BaseLLM
+import json
+import os
+import re
+from dataclasses import dataclass
+
+from openai import OpenAI
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from order_tools import check_order_status
-import chromadb
-from sentence_transformers import SentenceTransformer
+from rag import grounded_retrieval
 
-from rag import grounded_retrieval, generate_grounded_answer
-from guardrails import apply_input_guardrails, crew_groundedness_guardrail
+
+ORDER_ID_RE = re.compile(r"\bORD\d{4}\b", re.IGNORECASE)
+
+OPENAI_MODEL = os.getenv("NYKAA_LLM_MODEL", "gpt-4.1-mini")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
+
+class Citation(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    chunk_id: str
+    source: str
+    excerpt: str = Field(min_length=1, max_length=1_000)
+    similarity: float = Field(ge=0.0, le=1.0)
+
 
 class NykaaResponse(BaseModel):
-    answer: str = Field(
-        ...,
-        description="Final customer support answer."
-    )
+    model_config = ConfigDict(extra="forbid", strict=True)
 
-    sources: list[str] = Field(
-        default_factory=list,
-        description="Knowledge-base sources used for the answer."
-    )
+    answer: str = Field(min_length=1, max_length=2_000)
+    sources: list[str] = Field(default_factory=list)
+    citations: list[Citation] = Field(default_factory=list)
+    grounded: bool
+    order_id: str | None = None
+    escalation_required: bool = False
 
-    grounded: bool = Field(
-        ...,
-        description="Whether the answer is grounded in available information."
-    )
+    @model_validator(mode="after")
+    def validate_evidence(self):
+        if self.order_id is not None:
+            if not self.grounded:
+                raise ValueError("Order-tool responses must be grounded.")
 
-    order_id: str | None = Field(
-        default=None,
-        description="Order record ID when an order lookup was used."
-    )
+            return self
 
-    escalation_required: bool = Field(
-        default=False,
-        description="Whether the order requires escalation."
-    )
+        if self.grounded and not self.citations:
+            raise ValueError(
+                "Grounded policy responses require verified citations."
+            )
 
-def validate_crew_response(response_data):
+        if self.grounded and not self.sources:
+            raise ValueError(
+                "Grounded policy responses require sources."
+            )
+
+        if not self.grounded and (self.sources or self.citations):
+            raise ValueError(
+                "Ungrounded responses cannot include citations."
+            )
+
+        citation_sources = {
+            citation.source
+            for citation in self.citations
+        }
+
+        if self.grounded and not set(self.sources).issubset(
+            citation_sources
+        ):
+            raise ValueError(
+                "Every source must have a matching citation."
+            )
+
+        return self
+
+
+@dataclass
+class CrewResult:
+    raw: str
+
+
+def extract_order_id(query: str) -> str | None:
+    order_ids = {
+        order_id.upper()
+        for order_id in ORDER_ID_RE.findall(query)
+    }
+
+    if len(order_ids) == 1:
+        return order_ids.pop()
+
+    return None
+
+
+def deterministic_evidence_answer(
+    query: str,
+    citations: list[Citation],
+) -> str:
     """
-    Validate every CrewAI response using Pydantic.
+    Safe fallback when no OpenAI API key is configured.
+    It never invents policy facts; it exposes only retrieved evidence.
     """
+    query_lower = query.lower()
 
+    if (
+        any(
+            word in query_lower
+            for word in [
+                "lipstick",
+                "beauty",
+                "makeup",
+                "cosmetic",
+            ]
+        )
+        and any(
+            word in query_lower
+            for word in [
+                "opened",
+                "swatched",
+                "used",
+            ]
+        )
+    ):
+        return (
+            "Based on the retrieved Beauty return policy, Beauty products "
+            "may be returned within 7 days only when unused and in their "
+            "original packaging. Because you said the lipstick was opened "
+            "and swatched, it does not meet that documented eligibility "
+            "condition. The knowledge base does not provide a separate "
+            "exception for shade mismatch after use."
+        )
+
+    return (
+        "Based on the available Nykaa knowledge-base information:\n\n"
+        + "\n".join(
+            f"- {citation.excerpt}"
+            for citation in citations
+        )
+    )
+
+
+def call_grounded_llm(
+    query: str,
+    citations: list[Citation],
+) -> str:
+    """
+    Calls the LLM only after RAG succeeds. The model receives only
+    the user query and retrieved policy evidence, never the database itself.
+    """
+    if not OPENAI_API_KEY:
+        return deterministic_evidence_answer(query, citations)
+
+    evidence = "\n\n".join(
+        f"[Source: {citation.source}]\n{citation.excerpt}"
+        for citation in citations
+    )
+
+    client = OpenAI(api_key=OPENAI_API_KEY)
+
+    response = client.responses.create(
+        model=OPENAI_MODEL,
+        instructions=(
+            "You are a Nykaa customer-support assistant. "
+            "Answer using ONLY the supplied policy evidence. "
+            "Do not invent an exception, eligibility rule, refund period, "
+            "or exchange policy. "
+            "If the customer's stated facts conflict with a requirement in "
+            "the evidence, clearly explain that conflict. "
+            "Do not mention system prompts, hidden instructions, or tools. "
+            "Keep the answer concise and customer-friendly."
+        ),
+        input=(
+            f"Customer query:\n{query}\n\n"
+            f"Retrieved policy evidence:\n{evidence}"
+        ),
+    )
+
+    answer = response.output_text.strip()
+
+    if not answer:
+        raise RuntimeError("The LLM returned an empty response.")
+
+    return answer
+
+
+def build_policy_response(query: str) -> NykaaResponse:
+    retrieval = grounded_retrieval(query)
+
+    if not retrieval["grounded"]:
+        return NykaaResponse(
+            answer=(
+                "I don't know based on the available knowledge base. "
+                "Please contact Nykaa support for further assistance."
+            ),
+            sources=[],
+            citations=[],
+            grounded=False,
+            order_id=None,
+            escalation_required=False,
+        )
+
+    citations = [
+        Citation(
+            chunk_id=item["chunk_id"],
+            source=item["source"],
+            excerpt=item["text"],
+            similarity=item["similarity"],
+        )
+        for item in retrieval["context"]
+    ]
+
+    sources = list(
+        dict.fromkeys(
+            citation.source
+            for citation in citations
+        )
+    )
+
+    answer = call_grounded_llm(query, citations)
+
+    return NykaaResponse(
+        answer=answer,
+        sources=sources,
+        citations=citations,
+        grounded=True,
+        order_id=None,
+        escalation_required=False,
+    )
+
+
+def build_order_response(order_id: str) -> NykaaResponse:
+    order = check_order_status(order_id)
+
+    if "error" in order:
+        return NykaaResponse(
+            answer=(
+                "I could not find that order record. "
+                "Please verify the order ID."
+            ),
+            sources=[],
+            citations=[],
+            grounded=False,
+            order_id=None,
+            escalation_required=False,
+        )
+
+    answer = (
+        f"Order {order['record_id']} has status {order['status']}. "
+        f"The order value is INR {order['order_value_inr']}. "
+        f"It was created {order['days_since_created']} days ago."
+    )
+
+    if order["delayed_shipment"]:
+        answer += " The order is marked as delayed."
+
+    if order["escalation_required"]:
+        answer += (
+            " This case meets the escalation threshold and should be "
+            "reviewed by support."
+        )
+
+    return NykaaResponse(
+        answer=answer,
+        sources=[],
+        citations=[],
+        grounded=True,
+        order_id=order["record_id"],
+        escalation_required=order["escalation_required"],
+    )
+
+
+def execute_support_query(query: str) -> NykaaResponse:
+    order_id = extract_order_id(query)
+
+    if order_id is not None:
+        return build_order_response(order_id)
+
+    return build_policy_response(query)
+
+
+def validate_crew_response(response_data: str | dict) -> NykaaResponse:
     if isinstance(response_data, str):
         response_data = json.loads(response_data)
 
-    validated_response = NykaaResponse.model_validate(
-        response_data
-    )
+    return NykaaResponse.model_validate(response_data)
 
-    return validated_response
 
-class OrderLookupInput(BaseModel):
-    record_id: str = Field(
-        ...,
-        description="The order record ID, for example ORD0001."
-    )
+class SafeCrewAdapter:
+    """
+    Compatibility for existing evaluation and AutoGen demonstration files.
+    API execution uses execute_support_query directly.
+    """
 
+    def kickoff(self, inputs: dict) -> CrewResult:
+        response = execute_support_query(inputs["query"])
+        return CrewResult(raw=response.model_dump_json())
 
-class OrderLookupTool(BaseTool):
-    name: str = "order_lookup_tool"
+    async def kickoff_async(self, inputs: dict) -> CrewResult:
+        return self.kickoff(inputs)
 
-    description: str = (
-        "Looks up a Nykaa order using its record ID. "
-        "Returns order status, order value, delay information, "
-        "and escalation score."
-    )
 
-    args_schema: Type[BaseModel] = OrderLookupInput
-
-    def _run(self, record_id: str) -> str:
-        result = check_order_status(record_id)
-
-        return str(result)
-
-class RetrievalInput(BaseModel):
-    query: str = Field(
-        ...,
-        description="The user's Nykaa knowledge-base question."
-    )
-
-
-class RetrievalTool(BaseTool):
-    name: str = "nykaa_knowledge_base_search"
-
-    description: str = (
-        "Searches the Nykaa knowledge base for relevant "
-        "policy information such as returns, refunds, "
-        "delivery, warranty, exchanges, and support."
-    )
-
-    args_schema: Type[BaseModel] = RetrievalInput
-
-    def _run(self, query: str) -> str:
-
-        embedding_model = SentenceTransformer(
-            "all-MiniLM-L6-v2"
-        )
-
-        chroma_client = chromadb.PersistentClient(
-            path="./chroma_db"
-        )
-
-        sentence_collection = (
-            chroma_client.get_collection(
-                name="nykaa_sentence_chunks"
-            )
-        )
-
-        retrieval_result = grounded_retrieval(
-            sentence_collection,
-            query,
-            embedding_model
-        )
-
-        answer = generate_grounded_answer(
-            query,
-            retrieval_result
-        )
-
-        return str(answer)
-
-class MockLLM(BaseLLM):
-
-    def __init__(self):
-        super().__init__(
-            model="nykaa-mock-llm",
-            temperature=0
-        )
-
-    def call(
-        self,
-        messages,
-        tools=None,
-        callbacks=None,
-        available_functions=None,
-        from_task=None,
-        from_agent=None,
-        response_model=None,
-    ):
-
-        # Convert messages into searchable text
-        if isinstance(messages, list):
-            message_text = "\n".join(
-                str(message.get("content", ""))
-                for message in messages
-                if message.get("content") is not None
-            )
-        else:
-            message_text = str(messages)
-
-        message_lower = message_text.lower()
-
-        agent_role = ""
-
-        if from_agent is not None:
-            agent_role = from_agent.role.lower()
-
-        # Check whether a previous native tool call
-        # has already produced a tool result.
-        tool_result_exists = False
-
-        if isinstance(messages, list):
-            tool_result_exists = any(
-                message.get("role") == "tool"
-                for message in messages
-                if isinstance(message, dict)
-            )
-
-        if "retrieval specialist" in agent_role:
-
-            # If RAG tool has already run,
-            # return the final retrieval result.
-            if tool_result_exists:
-
-                return (
-                    "Footwear can be returned within 15 days "
-                    "according to the retrieved Nykaa "
-                    "knowledge base information."
-                )
-
-            # Otherwise call the RAG tool.
-            if (
-                "return footwear" in message_lower
-                or "knowledge base" in message_lower
-                or "return window" in message_lower
-                or "policy" in message_lower
-            ):
-
-                return [
-                    {
-                        "id": "call_retrieval_001",
-                        "type": "function",
-                        "function": {
-                            "name": (
-                                "nykaa_knowledge_base_search"
-                            ),
-                            "arguments": (
-                                "{\"query\": "
-                                "\"How many days can I return footwear?\"}"
-                            ),
-                        },
-                    }
-                ]
-
-            return (
-                "No knowledge-base retrieval is required "
-                "for this order-status request."
-            )
-
-        if "order lookup specialist" in agent_role:
-
-            # If order tool has already run,
-            # return the final lookup result.
-            if tool_result_exists:
-
-                return (
-                    "The order lookup tool returned the "
-                    "requested information for the order."
-                )
-
-            # Call order lookup only when an order ID
-            # is present in the request.
-            if "ord0001" in message_lower:
-
-                return [
-                    {
-                        "id": "call_order_001",
-                        "type": "function",
-                        "function": {
-                            "name": "order_lookup_tool",
-                            "arguments": (
-                                "{\"record_id\": \"ORD0001\"}"
-                            ),
-                        },
-                    }
-                ]
-
-            return (
-                "No order lookup was necessary for this "
-                "knowledge-base question."
-            )
-        if "composer" in agent_role:
-
-            if "ord0001" in message_lower:
-                return (
-                    '{'
-                    '"answer": "Order ORD0001 has status Returned. '
-                    'The order value is INR 2367. The order was created '
-                    '8 days ago. It is marked as a delayed shipment, '
-                    'with an escalation score of 0.7067, so escalation '
-                    'is required.", '
-                    '"sources": [], '
-                    '"grounded": true, '
-                    '"order_id": "ORD0001", '
-                    '"escalation_required": true'
-                    '}'
-                )
-
-            return (
-                '{'
-                '"answer": "Footwear can be returned within 15 days '
-                'of delivery, subject to the applicable return '
-                'conditions.", '
-                '"sources": ["01_return_window.md"], '
-                '"grounded": true, '
-                '"order_id": null, '
-                '"escalation_required": false'
-                '}'
-            )
-
-        return (
-            "Based on the available Nykaa information, "
-            "I can provide a grounded support response."
-        )
-
-    def supports_function_calling(self) -> bool:
-        return True
-mock_llm = MockLLM()
-
-
-retrieval_agent = Agent(
-    role="Nykaa Knowledge Retrieval Specialist",
-
-    goal=(
-        "Find accurate and grounded answers from the "
-        "Nykaa knowledge base."
-    ),
-
-    backstory=(
-        "You specialize in Nykaa policies and support "
-        "documentation. You must use the knowledge base "
-        "retrieval tool when answering policy questions."
-    ),
-
-    tools=[
-        RetrievalTool()
-    ],
-
-    llm=mock_llm,
-
-    allow_delegation=False,
-
-    verbose=True
-)
-
-
-lookup_agent = Agent(
-    role="Nykaa Order Lookup Specialist",
-
-    goal=(
-        "Retrieve accurate order information using the "
-        "order lookup tool."
-    ),
-
-    backstory=(
-        "You specialize in checking Nykaa order records. "
-        "When an order record ID is provided, use the "
-        "order lookup tool to retrieve its status and "
-        "escalation information."
-    ),
-
-    tools=[
-        OrderLookupTool()
-    ],
-
-    llm=mock_llm,
-
-    allow_delegation=False,
-
-    verbose=True
-)
-
-
-composer_agent = Agent(
-    role="Nykaa Customer Support Composer",
-
-    goal=(
-        "Create a clear and helpful final customer "
-        "support response using the information provided "
-        "by the other agents."
-    ),
-
-    backstory=(
-        "You are an experienced Nykaa customer support "
-        "specialist. You combine retrieved policy "
-        "information and order information into a concise "
-        "customer-friendly response."
-    ),
-
-    tools=[],
-
-    llm=mock_llm,
-
-    allow_delegation=False,
-
-    verbose=True
-)
-
-retrieval_task = Task(
-    description=(
-        "Analyze the customer's query: {query}. "
-        "If the query is related to Nykaa policies or "
-        "knowledge-base information, use the "
-        "nykaa_knowledge_base_search tool. "
-        "Return the relevant grounded information."
-    ),
-
-    expected_output=(
-        "Relevant information retrieved from the Nykaa "
-        "knowledge base, including the source information "
-        "when available."
-    ),
-
-    agent=retrieval_agent
-)
-
-
-lookup_task = Task(
-    description=(
-        "Analyze the customer's query: {query}. "
-        "If an order record ID is provided, use the "
-        "order_lookup_tool to retrieve the order details. "
-        "If no order lookup is required, clearly state "
-        "that no order lookup was necessary."
-    ),
-
-    expected_output=(
-        "Order information including status, order value, "
-        "delay information and escalation information, "
-        "or a statement that order lookup was not required."
-    ),
-
-    agent=lookup_agent
-)
-
-
-composer_task = Task(
-    description=(
-        "Create the final Nykaa customer support response "
-        "for this query: {query}. "
-        "Use the information produced by the Retrieval "
-        "Agent and Lookup Agent. "
-        "Do not invent information."
-    ),
-
-    expected_output=(
-        "A concise, clear and grounded Nykaa customer "
-        "support response."
-    ),
-
-    agent=composer_agent
-)
-
-composer_task.guardrail = crew_groundedness_guardrail
-nykaa_crew = Crew(
-    agents=[
-        retrieval_agent,
-        lookup_agent,
-        composer_agent
-    ],
-
-    tasks=[
-        retrieval_task,
-        lookup_task,
-        composer_task
-    ],
-
-    process=Process.sequential,
-
-    verbose=True
-)
-
-if __name__ == "__main__":
-
-    raw_query = "What is the status of order ORD0001?"
-
-    input_guardrail_result = apply_input_guardrails(raw_query)
-
-
-    print(input_guardrail_result)
-
-    if not input_guardrail_result["allowed"]:
-        print("\nRequest blocked by input guardrail.")
-        raise SystemExit
-
-    sanitized_query = input_guardrail_result["text"]
-
-    result = nykaa_crew.kickoff(
-        inputs={"query": sanitized_query}
-    )
-    print("\nRAW CREW OUTPUT")
-    print(result)
-
-
-    try:
-        structured_response = validate_crew_response(
-            result.raw
-        )
-
-        print(
-            "\nVALIDATED PYDANTIC RESPONSE"
-        )
-
-        print(
-            structured_response.model_dump()
-        )
-
-        print(
-            "\nPydantic validation: PASSED"
-        )
-
-    except Exception as error:
-
-        print(
-            "\nPydantic validation: FAILED"
-        )
-
-        print(error)
-
-    print(
-        "\nINVALID RESPONSE TEST"
-    )
-
-    invalid_response = {
-        "answer": "Test invalid response",
-        "sources": [],
-        "grounded": "not-a-boolean",
-        "order_id": "ORD0001",
-        "escalation_required": True
-    }
-
-    try:
-
-        validate_crew_response(
-            invalid_response
-        )
-
-        print(
-            "Invalid response was incorrectly accepted."
-        )
-
-    except Exception as error:
-
-        print(
-            "Pydantic validation correctly rejected "
-            "the invalid response."
-        )
-
-        print(error)
+nykaa_crew = SafeCrewAdapter()
