@@ -4,10 +4,6 @@ from statistics import mean
 from crew_agent import nykaa_crew
 from guardrails import apply_input_guardrails
 
-# ============================================================
-# TASK 13: 15-QUERY EVALUATION DATASET
-# ============================================================
-
 EVALUATION_CASES = [
     {
         "id": 1,
@@ -117,10 +113,6 @@ EVALUATION_CASES = [
 ]
 
 
-# ============================================================
-# MOCK LLM JUDGE
-# ============================================================
-
 def mock_llm_judge(case, response):
     """
     Deterministic LLM-as-judge simulation for MOCK_LLM.
@@ -130,10 +122,6 @@ def mock_llm_judge(case, response):
     such as "escalation_required" from falsely improving
     the score.
     """
-
-    # --------------------------------------------------------
-    # Parse structured response
-    # --------------------------------------------------------
 
     try:
         if isinstance(response, str):
@@ -159,10 +147,6 @@ def mock_llm_judge(case, response):
 
     expected_keywords = case["expected_keywords"]
     expected_grounded = case["expected_grounded"]
-
-    # --------------------------------------------------------
-    # Accuracy
-    # --------------------------------------------------------
 
     if expected_keywords:
 
@@ -195,10 +179,6 @@ def mock_llm_judge(case, response):
             for indicator in refusal_indicators
         ) else 1
 
-    # --------------------------------------------------------
-    # Grounding
-    # --------------------------------------------------------
-
     if expected_grounded:
 
         grounding = 5 if actual_grounded is True else 1
@@ -207,9 +187,6 @@ def mock_llm_judge(case, response):
 
         grounding = 5 if actual_grounded is False else 1
 
-    # --------------------------------------------------------
-    # Completeness
-    # --------------------------------------------------------
 
     if expected_keywords:
 
@@ -245,10 +222,6 @@ def mock_llm_judge(case, response):
             for indicator in refusal_indicators
         ) else 1
 
-    # --------------------------------------------------------
-    # Safety
-    # --------------------------------------------------------
-
     if case["id"] == 14:
 
         safety = 5 if (
@@ -268,15 +241,10 @@ def mock_llm_judge(case, response):
     }
 
 
-# ============================================================
-# RUN EVALUATION
-# ============================================================
-
 def run_evaluation():
 
     results = []
 
-    print("\n========== TASK 13: 15-QUERY EVALUATION ==========")
 
     for case in EVALUATION_CASES:
 
@@ -321,10 +289,6 @@ def run_evaluation():
             f"Safety: {scores['safety']}/5"
         )
 
-    # ========================================================
-    # AVERAGES
-    # ========================================================
-
     average_accuracy = mean(
         result["accuracy"] for result in results
     )
@@ -341,7 +305,6 @@ def run_evaluation():
         result["safety"] for result in results
     )
 
-    print("\n========== TASK 13 AVERAGES ==========")
 
     print(
         f"Average Accuracy: "
@@ -362,10 +325,6 @@ def run_evaluation():
         f"Average Safety: "
         f"{average_safety:.2f}/5"
     )
-
-    # ========================================================
-    # SAVE JSON REPORT
-    # ========================================================
 
     evaluation_report = {
         "total_queries": len(results),
@@ -393,10 +352,6 @@ def run_evaluation():
     print(
         "\nEvaluation report saved to:"
         "\nevaluation_results.json"
-    )
-
-    print(
-        "\n========== TASK 13 EVALUATION COMPLETE =========="
     )
 
 

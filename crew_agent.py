@@ -13,10 +13,6 @@ from sentence_transformers import SentenceTransformer
 from rag import grounded_retrieval, generate_grounded_answer
 from guardrails import apply_input_guardrails, crew_groundedness_guardrail
 
-# --------------------------------------------------------
-# Task 9: Pydantic Structured Response Model
-# --------------------------------------------------------
-
 class NykaaResponse(BaseModel):
     answer: str = Field(
         ...,
@@ -43,10 +39,6 @@ class NykaaResponse(BaseModel):
         description="Whether the order requires escalation."
     )
 
-    # --------------------------------------------------------
-# Task 9: Response Validation
-# --------------------------------------------------------
-
 def validate_crew_response(response_data):
     """
     Validate every CrewAI response using Pydantic.
@@ -60,10 +52,6 @@ def validate_crew_response(response_data):
     )
 
     return validated_response
-
-# --------------------------------------------------------
-# Task 7: Order Lookup Tool
-# --------------------------------------------------------
 
 class OrderLookupInput(BaseModel):
     record_id: str = Field(
@@ -87,10 +75,6 @@ class OrderLookupTool(BaseTool):
         result = check_order_status(record_id)
 
         return str(result)
-
-# --------------------------------------------------------
-# Task 7: RAG Retrieval Tool
-# --------------------------------------------------------
 
 class RetrievalInput(BaseModel):
     query: str = Field(
@@ -139,10 +123,6 @@ class RetrievalTool(BaseTool):
 
         return str(answer)
 
-# --------------------------------------------------------
-# Task 7: MOCK_LLM
-# --------------------------------------------------------
-
 class MockLLM(BaseLLM):
 
     def __init__(self):
@@ -190,10 +170,6 @@ class MockLLM(BaseLLM):
                 if isinstance(message, dict)
             )
 
-        # ------------------------------------------------
-        # Retrieval Agent
-        # ------------------------------------------------
-
         if "retrieval specialist" in agent_role:
 
             # If RAG tool has already run,
@@ -235,10 +211,6 @@ class MockLLM(BaseLLM):
                 "for this order-status request."
             )
 
-        # ------------------------------------------------
-        # Lookup Agent
-        # ------------------------------------------------
-
         if "order lookup specialist" in agent_role:
 
             # If order tool has already run,
@@ -271,10 +243,6 @@ class MockLLM(BaseLLM):
                 "No order lookup was necessary for this "
                 "knowledge-base question."
             )
-
-        # ------------------------------------------------
-        # Composer Agent
-        # ------------------------------------------------
         if "composer" in agent_role:
 
             if "ord0001" in message_lower:
@@ -304,10 +272,6 @@ class MockLLM(BaseLLM):
                 '}'
             )
 
-        # ------------------------------------------------
-        # Fallback
-        # ------------------------------------------------
-
         return (
             "Based on the available Nykaa information, "
             "I can provide a grounded support response."
@@ -315,16 +279,8 @@ class MockLLM(BaseLLM):
 
     def supports_function_calling(self) -> bool:
         return True
-# --------------------------------------------------------
-# Task 7: Create CrewAI Agents
-# --------------------------------------------------------
-
 mock_llm = MockLLM()
 
-
-# --------------------------------------------------------
-# Retrieval Agent
-# --------------------------------------------------------
 
 retrieval_agent = Agent(
     role="Nykaa Knowledge Retrieval Specialist",
@@ -351,10 +307,6 @@ retrieval_agent = Agent(
     verbose=True
 )
 
-
-# --------------------------------------------------------
-# Lookup Agent
-# --------------------------------------------------------
 
 lookup_agent = Agent(
     role="Nykaa Order Lookup Specialist",
@@ -383,10 +335,6 @@ lookup_agent = Agent(
 )
 
 
-# --------------------------------------------------------
-# Composer Agent
-# --------------------------------------------------------
-
 composer_agent = Agent(
     role="Nykaa Customer Support Composer",
 
@@ -411,9 +359,6 @@ composer_agent = Agent(
 
     verbose=True
 )
-# --------------------------------------------------------
-# Task 7: Create CrewAI Tasks
-# --------------------------------------------------------
 
 retrieval_task = Task(
     description=(
@@ -469,9 +414,7 @@ composer_task = Task(
 
     agent=composer_agent
 )
-# --------------------------------------------------------
-# Task 7: Create Crew
-# --------------------------------------------------------
+
 composer_task.guardrail = crew_groundedness_guardrail
 nykaa_crew = Crew(
     agents=[
@@ -490,19 +433,14 @@ nykaa_crew = Crew(
 
     verbose=True
 )
-# --------------------------------------------------------
-# Task 7: CrewAI Demonstration
-# --------------------------------------------------------
 
 if __name__ == "__main__":
-
-    print("\n========== TASK 9 STRUCTURED OUTPUT TEST ==========")
 
     raw_query = "What is the status of order ORD0001?"
 
     input_guardrail_result = apply_input_guardrails(raw_query)
 
-    print("\n========== INPUT GUARDRAIL RESULT ==========")
+
     print(input_guardrail_result)
 
     if not input_guardrail_result["allowed"]:
@@ -514,12 +452,9 @@ if __name__ == "__main__":
     result = nykaa_crew.kickoff(
         inputs={"query": sanitized_query}
     )
-    print("\n========== RAW CREW OUTPUT ==========")
+    print("\nRAW CREW OUTPUT")
     print(result)
 
-    # ----------------------------------------------------
-    # Task 9: Validate Composer Response
-    # ----------------------------------------------------
 
     try:
         structured_response = validate_crew_response(
@@ -527,7 +462,7 @@ if __name__ == "__main__":
         )
 
         print(
-            "\n========== VALIDATED PYDANTIC RESPONSE =========="
+            "\nVALIDATED PYDANTIC RESPONSE"
         )
 
         print(
@@ -546,12 +481,8 @@ if __name__ == "__main__":
 
         print(error)
 
-        # ----------------------------------------------------
-    # Task 9: Invalid Response Validation Test
-    # ----------------------------------------------------
-
     print(
-        "\n========== INVALID RESPONSE TEST =========="
+        "\nINVALID RESPONSE TEST"
     )
 
     invalid_response = {

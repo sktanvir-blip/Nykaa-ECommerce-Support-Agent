@@ -2,11 +2,6 @@ from langchain_core.chat_history import InMemoryChatMessageHistory
 from langchain_core.runnables import RunnableLambda
 from langchain_core.runnables.history import RunnableWithMessageHistory
 
-
-# --------------------------------------------------------
-# Task 8: Session Memory Store
-# --------------------------------------------------------
-
 store = {}
 
 
@@ -22,11 +17,6 @@ def get_session_history(session_id: str):
         store[session_id] = InMemoryChatMessageHistory()
 
     return store[session_id]
-
-
-# --------------------------------------------------------
-# Task 8: MOCK LLM
-# --------------------------------------------------------
 
 def mock_memory_responder(inputs):
     """
@@ -80,19 +70,9 @@ def mock_memory_responder(inputs):
         f"I received your message: {user_input}"
     )
 
-
-# --------------------------------------------------------
-# Task 8: LangChain Runnable
-# --------------------------------------------------------
-
 mock_chain = RunnableLambda(
     mock_memory_responder
 )
-
-
-# --------------------------------------------------------
-# Task 8: RunnableWithMessageHistory
-# --------------------------------------------------------
 
 memory_chain = RunnableWithMessageHistory(
     mock_chain,
@@ -102,13 +82,7 @@ memory_chain = RunnableWithMessageHistory(
 )
 
 
-# --------------------------------------------------------
-# Task 8: Demonstration
-# --------------------------------------------------------
-
 if __name__ == "__main__":
-
-    print("\n========== TASK 8 SESSION MEMORY ==========")
 
     session_id = "nykaa_demo_session"
 
@@ -147,7 +121,7 @@ if __name__ == "__main__":
     print(response_2)
 
     # Display stored conversation
-    print("\n========== STORED SESSION HISTORY ==========")
+    print("\nSTORED SESSION HISTORY")
 
     history = get_session_history(session_id)
 
@@ -156,11 +130,7 @@ if __name__ == "__main__":
             f"{message.type}: {message.content}"
         )
 
-# ----------------------------------------------------
-    # Task 8: Session Isolation Test
-    # ----------------------------------------------------
-
-    print("\n========== SESSION ISOLATION TEST ==========")
+    print("\nSESSION ISOLATION TEST")
 
     session_b_id = "nykaa_demo_session_b"
 
@@ -205,5 +175,3 @@ if __name__ == "__main__":
         "\nSession A and Session B "
         "use separate session IDs."
     )
-
-    print("\n========== TASK 8 COMPLETE ==========")

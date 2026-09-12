@@ -2,7 +2,8 @@ from pathlib import Path
 import re
 from sentence_transformers import SentenceTransformer
 import chromadb
-# Task 4: Empirically calibrated similarity threshold
+
+#calibrated similarity threshold
 SIMILARITY_THRESHOLD = 0.30
 
 KNOWLEDGE_BASE_DIR = Path("knowledge_base") 
@@ -286,7 +287,7 @@ def calibrate_similarity(
 ):
 
     print(
-        f"\n========== {collection_name} CALIBRATION =========="
+        f"\n{collection_name} CALIBRATION"
     )
 
     scores = []
@@ -333,7 +334,7 @@ def print_search_results(
 ):
 
     print(
-        f"\n========== {collection_name} =========="
+        f"\n{collection_name}"
     )
 
     for i in range(len(results["ids"][0])):
@@ -369,7 +370,7 @@ def run_grounded_tests(
     threshold=SIMILARITY_THRESHOLD
 ):
 
-    print("\n========== GROUNDED GENERATION TESTS ==========")
+    print("\nGROUNDED GENERATION TESTS")
 
     for number, query in enumerate(queries, start=1):
 
@@ -420,7 +421,7 @@ def evaluate_chunking_strategy(
 ):
 
     print(
-        f"\n========== {collection_name} EVALUATION =========="
+        f"\n{collection_name} EVALUATION"
     )
 
     total_precision = 0
@@ -569,19 +570,16 @@ if __name__ == "__main__":
         sentence_embeddings.shape
     )
 
-    # ChromaDB collections
     fixed_collection, sentence_collection = (
         create_chroma_collections()
     )
 
-    # Index fixed-size chunks
     index_chunks(
         fixed_collection,
         fixed_chunks,
         fixed_embeddings
     )
 
-    # Index sentence-based chunks
     index_chunks(
         sentence_collection,
         sentence_chunks,
@@ -600,10 +598,6 @@ if __name__ == "__main__":
         sentence_collection.count()
     )
 
-# --------------------------------------------------------
-    # Task 4: Similarity threshold calibration
-    # --------------------------------------------------------
-
     in_scope_queries = [
         "How many days can I return footwear?",
         "How long does a COD refund take?",
@@ -616,7 +610,7 @@ if __name__ == "__main__":
     ]
 
     print(
-        "\n\n========== THRESHOLD CALIBRATION =========="
+        "\n\nTHRESHOLD CALIBRATION"
     )
 
     fixed_in_scope_scores = calibrate_similarity(
@@ -646,7 +640,6 @@ if __name__ == "__main__":
         out_of_scope_queries,
         "SENTENCE-BASED"
     )
-    # Test query
     test_query = (
         "What is the weather in mumbai today?"
     )
@@ -669,7 +662,6 @@ if __name__ == "__main__":
         top_k=3
     )
 
-    # Display results
     print_search_results(
         "FIXED-SIZE COLLECTION",
         fixed_results
@@ -679,9 +671,6 @@ if __name__ == "__main__":
         "SENTENCE-BASED COLLECTION",
         sentence_results
     )
-    # --------------------------------------------------------
-    # Task 4: Grounded generation test
-    # --------------------------------------------------------
 
     grounded_result = grounded_retrieval(
         sentence_collection,
@@ -696,7 +685,7 @@ if __name__ == "__main__":
         grounded_result
     )
 
-    print("\n========== GROUNDED ANSWER ==========")
+    print("\nGROUNDED ANSWER")
 
     print(
         "Grounded:",
@@ -718,9 +707,6 @@ if __name__ == "__main__":
         final_answer["sources"]
     )
 
-    # --------------------------------------------------------
-    # Task 4: Five in-scope grounded generation tests
-    # --------------------------------------------------------
 
     grounded_test_queries = [
         "How many days can I return footwear?",
@@ -735,10 +721,6 @@ if __name__ == "__main__":
         embedding_model,
         grounded_test_queries
     )
-
-    # --------------------------------------------------------
-    # Task 4: Deliberately out-of-scope test
-    # --------------------------------------------------------
 
     out_of_scope_query = (
         "What is the weather in Mumbai today?"
@@ -757,7 +739,7 @@ if __name__ == "__main__":
         out_of_scope_result
     )
 
-    print("\n========== OUT-OF-SCOPE TEST ==========")
+    print("\nOUT-OF-SCOPE TEST")
 
     print(
         "Query:",
@@ -783,9 +765,6 @@ if __name__ == "__main__":
         "Sources:",
         out_of_scope_answer["sources"]
     )
-    # --------------------------------------------------------
-    # Task 5: Chunking strategy evaluation
-    # --------------------------------------------------------
 
     evaluation_queries = [
         "How many days can I return footwear?",
@@ -821,7 +800,6 @@ if __name__ == "__main__":
         top_k=3
     )
 
-    print("\n========== TASK 5 FINAL COMPARISON ==========")
 
     print(
         "Fixed-size average precision:",

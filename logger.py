@@ -49,7 +49,6 @@ def write_log(
 
 
 if __name__ == "__main__":
-    print("\n========== TASK 12 LOGGING TEST ==========")
 
     trace_id = create_trace_id()
     start_time = start_timer()

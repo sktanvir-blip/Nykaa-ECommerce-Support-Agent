@@ -1,11 +1,6 @@
 import re
 import json
 
-
-# --------------------------------------------------------
-# Task 10: PII Masking Guardrail
-# --------------------------------------------------------
-
 def mask_pii(text):
     """
     Mask common PII such as email addresses and
@@ -28,10 +23,6 @@ def mask_pii(text):
 
     return text
 
-
-# --------------------------------------------------------
-# Task 10: Prompt Injection Guardrail
-# --------------------------------------------------------
 
 def check_prompt_injection(text):
     """
@@ -70,10 +61,6 @@ def check_prompt_injection(text):
     }
 
 
-# --------------------------------------------------------
-# Task 10: Combined Input Guardrail
-# --------------------------------------------------------
-
 def apply_input_guardrails(text):
     """
     Apply PII masking and prompt-injection detection.
@@ -100,11 +87,6 @@ def apply_input_guardrails(text):
         "reason": "Input passed guardrails.",
         "matched_pattern": None,
     }
-
-
-# --------------------------------------------------------
-# Task 10: Groundedness Output Guardrail
-# --------------------------------------------------------
 
 def groundedness_guardrail(response):
     """
@@ -181,22 +163,11 @@ def crew_groundedness_guardrail(task_output):
 
     except Exception as error:
         return False, f"Groundedness validation failed: {error}"
-# --------------------------------------------------------
-# Task 10: Demonstration
-# --------------------------------------------------------
 
 if __name__ == "__main__":
 
     print(
-        "\n========== TASK 10 GUARDRAILS =========="
-    )
-
-    # ----------------------------------------------------
-    # Test 1: PII Masking
-    # ----------------------------------------------------
-
-    print(
-        "\n========== PII MASKING TEST =========="
+        "\nPII MASKING TEST"
     )
 
     pii_input = (
@@ -214,12 +185,8 @@ if __name__ == "__main__":
     print("\nAfter guardrails:")
     print(pii_result["text"])
 
-    # ----------------------------------------------------
-    # Test 2: Prompt Injection
-    # ----------------------------------------------------
-
     print(
-        "\n========== PROMPT INJECTION TEST =========="
+        "\nPROMPT INJECTION TEST"
     )
 
     injection_input = (
@@ -237,12 +204,8 @@ if __name__ == "__main__":
     print("\nGuardrail result:")
     print(injection_result)
 
-    # ----------------------------------------------------
-    # Test 3: Grounded Output
-    # ----------------------------------------------------
-
     print(
-        "\n========== GROUNDED OUTPUT TEST =========="
+        "\nGROUNDED OUTPUT TEST"
     )
 
     grounded_response = {
@@ -263,12 +226,8 @@ if __name__ == "__main__":
     print("Grounded response:")
     print(grounded_result)
 
-    # ----------------------------------------------------
-    # Test 4: Ungrounded Output
-    # ----------------------------------------------------
-
     print(
-        "\n========== UNGROUNDED OUTPUT TEST =========="
+        "\nUNGROUNDED OUTPUT TEST"
     )
 
     ungrounded_response = {
@@ -285,7 +244,3 @@ if __name__ == "__main__":
 
     print("Ungrounded response:")
     print(ungrounded_result)
-
-    print(
-        "\n========== TASK 10 DEMONSTRATION COMPLETE =========="
-    )

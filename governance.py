@@ -3,16 +3,6 @@ from dataclasses import dataclass
 import math
 
 
-# ============================================================
-# TASK 15: GOVERNANCE & COST CONTROL
-# PART 1 - GOVERNANCE LAYERS
-# ============================================================
-
-
-# ------------------------------------------------------------
-# 1. Risk classification
-# ------------------------------------------------------------
-
 class RiskLevel(Enum):
     LOW = "LOW"
     MEDIUM = "MEDIUM"
@@ -56,10 +46,6 @@ def classify_risk(query: str) -> RiskLevel:
 
     # General informational questions are LOW risk
     return RiskLevel.LOW
-
-# ------------------------------------------------------------
-# Runtime token/cost budget
-# ------------------------------------------------------------
 
 MAX_INPUT_TOKENS = 1000
 
@@ -138,10 +124,6 @@ def governance_check(query: str) -> GovernanceDecision:
     Layer 4: Runtime enforcement
     """
 
-    # ========================================================
-    # LAYER 1 - POLICY
-    # ========================================================
-
     if not query or not query.strip():
 
         return GovernanceDecision(
@@ -149,23 +131,6 @@ def governance_check(query: str) -> GovernanceDecision:
             risk_level=RiskLevel.LOW,
             reason="Empty requests are not allowed.",
         )
-
-    # ========================================================
-    # LAYER 2 - PERMISSION / LEAST AUTONOMY
-    # ========================================================
-
-    # This project does not allow the general Composer Agent
-    # to directly perform order lookups or other privileged
-    # actions.
-
-    # Privileged tools must remain restricted to the
-    # specifically authorized agent.
-
-    # The actual tool restriction is enforced in crew_agent.py.
-
-    # ========================================================
-    # LAYER 3 - RISK CONTROL
-    # ========================================================
 
     risk_level = classify_risk(query)
 
@@ -180,9 +145,6 @@ def governance_check(query: str) -> GovernanceDecision:
             ),
         )
 
-# ========================================================
-    # LAYER 4 - RUNTIME ENFORCEMENT
-    # ========================================================
 
     budget_decision = check_runtime_budget(query)
 
@@ -206,15 +168,10 @@ def governance_check(query: str) -> GovernanceDecision:
         ),
     )
 
-# ------------------------------------------------------------
-# 3. Demonstration
-# ------------------------------------------------------------
-
 if __name__ == "__main__":
 
     print("\n")
     print("=" * 70)
-    print("TASK 15 - GOVERNANCE TEST")
     print("=" * 70)
 
     test_queries = [
@@ -224,10 +181,6 @@ if __name__ == "__main__":
         "Please delete my account.",
         "",
     ]
-
-    # --------------------------------------------------------
-    # PART 1 - Governance layer demonstration
-    # --------------------------------------------------------
 
     for query in test_queries:
 
@@ -240,9 +193,6 @@ if __name__ == "__main__":
         print("Allowed:", decision.allowed)
         print("Reason:", decision.reason)
 
-    # --------------------------------------------------------
-    # PART 2 - Runtime token/cost budget demonstration
-    # --------------------------------------------------------
 
     print("\n")
     print("=" * 70)
@@ -266,11 +216,5 @@ if __name__ == "__main__":
         print("Allowed:", budget.allowed)
         print("Reason:", budget.reason)
 
-    # --------------------------------------------------------
-    # TASK 15 COMPLETE
-    # --------------------------------------------------------
-
     print("\n")
-    print("=" * 70)
-    print("TASK 15 COMPLETE")
     print("=" * 70)

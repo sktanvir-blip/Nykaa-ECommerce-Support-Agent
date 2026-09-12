@@ -1,20 +1,6 @@
-# ============================================================
-# TASK 16: IN-MEMORY CACHE
-# ============================================================
-
 from typing import Any
 
-
-# ------------------------------------------------------------
-# 1. In-memory cache storage
-# ------------------------------------------------------------
-
 CACHE = {}
-
-
-# ------------------------------------------------------------
-# 2. Normalize the query
-# ------------------------------------------------------------
 
 def normalize_query(query: str) -> str:
     """
@@ -24,11 +10,6 @@ def normalize_query(query: str) -> str:
     normalized = " ".join(query.lower().strip().split())
 
     return normalized
-
-
-# ------------------------------------------------------------
-# 3. Get value from cache
-# ------------------------------------------------------------
 
 def get_cached_response(query: str) -> Any:
     """
@@ -44,10 +25,6 @@ def get_cached_response(query: str) -> Any:
     return None
 
 
-# ------------------------------------------------------------
-# 4. Store response in cache
-# ------------------------------------------------------------
-
 def set_cached_response(query: str, response: Any) -> None:
     """
     Store a response using the normalized query as the key.
@@ -57,10 +34,6 @@ def set_cached_response(query: str, response: Any) -> None:
 
     CACHE[cache_key] = response
 
-
-# ------------------------------------------------------------
-# 5. Cached execution wrapper
-# ------------------------------------------------------------
 
 def get_or_execute(query: str, execute_function):
     """
@@ -82,23 +55,10 @@ def get_or_execute(query: str, execute_function):
     return response, "CACHE MISS"
 
 
-# ------------------------------------------------------------
-# 6. Demonstration
-# ------------------------------------------------------------
-
 if __name__ == "__main__":
-
-    print("\n")
-    print("=" * 70)
-    print("TASK 16 - IN-MEMORY CACHE TEST")
-    print("=" * 70)
 
     execution_count = 0
 
-
-    # --------------------------------------------------------
-    # Simulated expensive operation
-    # --------------------------------------------------------
 
     def expensive_operation(query):
 
@@ -114,10 +74,6 @@ if __name__ == "__main__":
         )
 
 
-    # --------------------------------------------------------
-    # First request
-    # --------------------------------------------------------
-
     query_1 = "What is the return policy for footwear?"
 
     response_1, cache_status_1 = get_or_execute(
@@ -130,11 +86,6 @@ if __name__ == "__main__":
     print("Cache status:", cache_status_1)
     print("Response:", response_1)
 
-
-    # --------------------------------------------------------
-    # Second request
-    # Same query with different capitalization/spaces
-    # --------------------------------------------------------
 
     query_2 = "   WHAT IS THE RETURN POLICY FOR FOOTWEAR?   "
 
@@ -149,14 +100,5 @@ if __name__ == "__main__":
     print("Response:", response_2)
 
 
-    # --------------------------------------------------------
-    # Verify expensive operation was executed only once
-    # --------------------------------------------------------
-
     print("\n")
     print("Actual expensive-operation executions:", execution_count)
-
-    print("\n")
-    print("=" * 70)
-    print("TASK 16 COMPLETE")
-    print("=" * 70)

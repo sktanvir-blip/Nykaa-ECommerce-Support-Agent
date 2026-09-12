@@ -1,18 +1,10 @@
 from dataset import generate_orders
 
 
-# --------------------------------------------------------
-# Task 6: Order Lookup Configuration
-# --------------------------------------------------------
-
 ORDERS = generate_orders()
 
 ESCALATION_THRESHOLD = 0.60
 
-
-# --------------------------------------------------------
-# Task 6: Order Lookup
-# --------------------------------------------------------
 
 def check_order_status(record_id):
     """
@@ -70,13 +62,7 @@ def check_order_status(record_id):
     }
 
 
-# --------------------------------------------------------
-# Task 6: Demonstration
-# --------------------------------------------------------
-
 if __name__ == "__main__":
-
-    print("\n========== TASK 6 ORDER LOOKUP ==========")
 
     delayed_order = next(
         order

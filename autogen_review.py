@@ -18,15 +18,6 @@ from autogen_agentchat.teams import RoundRobinGroupChat
 from autogen_core import CancellationToken
 
 
-# ============================================================
-# TASK 14: AUTOGEN STRUCTURED REVIEW
-# ============================================================
-
-
-# ------------------------------------------------------------
-# 1. Pydantic structured verdict
-# ------------------------------------------------------------
-
 class VerdictModel(BaseModel):
     approved: bool = Field(
         ...,
@@ -47,11 +38,6 @@ class VerdictModel(BaseModel):
         default_factory=list,
         description="Issues found in the draft."
     )
-
-
-# ------------------------------------------------------------
-# 2. AutoGen Reviewer Agent
-# ------------------------------------------------------------
 
 class ReviewerAgent(BaseChatAgent):
 
@@ -129,11 +115,6 @@ class ReviewerAgent(BaseChatAgent):
     ) -> None:
         pass
 
-
-# ------------------------------------------------------------
-# 3. AutoGen Final Editor Agent
-# ------------------------------------------------------------
-
 class FinalEditorAgent(BaseChatAgent):
 
     def __init__(self, name: str = "final_editor") -> None:
@@ -167,10 +148,6 @@ class FinalEditorAgent(BaseChatAgent):
                 elif message.source == "reviewer":
                     review = message.content
 
-        # ----------------------------------------------------
-        # APPROVE CASE
-        # ----------------------------------------------------
-
         if review.startswith("APPROVE"):
 
             verdict = VerdictModel(
@@ -179,10 +156,6 @@ class FinalEditorAgent(BaseChatAgent):
                 revised_answer=draft,
                 issues=[],
             )
-
-        # ----------------------------------------------------
-        # REVISE CASE
-        # ----------------------------------------------------
 
         else:
 
@@ -220,10 +193,6 @@ class FinalEditorAgent(BaseChatAgent):
         pass
 
 
-# ------------------------------------------------------------
-# 4. Create AutoGen review team
-# ------------------------------------------------------------
-
 def create_review_team():
 
     reviewer = ReviewerAgent()
@@ -244,10 +213,6 @@ def create_review_team():
     return review_team
 
 
-# ------------------------------------------------------------
-# 5. Run one AutoGen review
-# ------------------------------------------------------------
-
 async def run_review(draft: str):
 
     review_team = create_review_team()
@@ -261,16 +226,10 @@ async def run_review(draft: str):
 
     return result
 
-
-# ------------------------------------------------------------
-# 6. Demonstrate APPROVE unchanged
-# ------------------------------------------------------------
-
 async def demonstrate_approve():
 
     print("\n")
     print("=" * 70)
-    print("TASK 14 - APPROVE UNCHANGED")
     print("=" * 70)
 
     good_draft = (
@@ -307,16 +266,10 @@ async def demonstrate_approve():
 
         print("\nApproved unchanged:", verdict.approved)
 
-
-# ------------------------------------------------------------
-# 7. Demonstrate REVISE
-# ------------------------------------------------------------
-
 async def demonstrate_revise():
 
     print("\n")
     print("=" * 70)
-    print("TASK 14 - REVISE")
     print("=" * 70)
 
     flawed_draft = (
@@ -351,22 +304,14 @@ async def demonstrate_revise():
         print("Revised answer:", verdict.revised_answer)
 
 
-# ------------------------------------------------------------
-# 8. Main
-# ------------------------------------------------------------
-
 async def demonstrate_real_crewai_draft():
 
     print("\n")
     print("=" * 70)
-    print("TASK 14 - REAL CREWAI → AUTOGEN REVIEW")
     print("=" * 70)
 
     query = "What is the status of order ORD0001?"
 
-    # --------------------------------------------------------
-    # STEP 1: Generate the draft using the real CrewAI crew
-    # --------------------------------------------------------
 
     crew_result = await nykaa_crew.kickoff_async(
         inputs={"query": query}
@@ -391,9 +336,6 @@ async def demonstrate_real_crewai_draft():
     print("\nREAL CREWAI DRAFT:")
     print(crew_draft)
 
-    # --------------------------------------------------------
-    # STEP 2: Send the real CrewAI draft to AutoGen
-    # --------------------------------------------------------
 
     autogen_result = await run_review(
         crew_draft
@@ -409,10 +351,6 @@ async def demonstrate_real_crewai_draft():
             print(message.to_text())
         else:
             print(message.content)
-
-    # --------------------------------------------------------
-    # STEP 3: Read final structured Pydantic verdict
-    # --------------------------------------------------------
 
     final_message = autogen_result.messages[-1]
 
@@ -438,12 +376,6 @@ async def main():
 
     # NEW: actual CrewAI → AutoGen integration
     await demonstrate_real_crewai_draft()
-
-    print("\n")
-    print("=" * 70)
-    print("TASK 14 AUTOGEN REVIEW COMPLETE")
-    print("=" * 70)
-
 
 if __name__ == "__main__":
     asyncio.run(main())

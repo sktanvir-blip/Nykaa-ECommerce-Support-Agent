@@ -2,10 +2,6 @@ import random
 from collections import Counter
 
 
-# ============================================================
-# 1. DATASET DESIGN CONFIGURATION
-# ============================================================
-
 SEED = 1
 NUM_ORDERS = 60
 
@@ -49,10 +45,6 @@ MAX_DAYS = 30
 
 DELAYED_SHIPMENT_PROBABILITY = 0.20
 
-
-# ============================================================
-# 2. DATASET GENERATOR
-# ============================================================
 
 def generate_orders():
     random.seed(SEED)
@@ -100,14 +92,9 @@ def generate_orders():
 
     return orders
 
-
-# ============================================================
-# 3. DATASET VALIDATION
-# ============================================================
-
 def validate_dataset(orders):
 
-    print("\n========== DATASET VALIDATION ==========")
+    print("\nDATASET VALIDATION")
 
     # Total record count
     print(f"Total records: {len(orders)}")
@@ -168,22 +155,13 @@ def validate_dataset(orders):
 
     print("\nDataset validation PASSED.")
 
-
-# ============================================================
-# 4. DISPLAY SAMPLE RECORDS
-# ============================================================
-
 def print_sample_records(orders):
 
-    print("\n========== SAMPLE RECORDS ==========")
+    print("\nSAMPLE RECORDS")
 
     for order in orders[:5]:
         print(order)
 
-
-# ============================================================
-# 5. MAIN PROGRAM
-# ============================================================
 
 if __name__ == "__main__":
 
