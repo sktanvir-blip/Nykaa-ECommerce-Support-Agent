@@ -3,6 +3,7 @@ from pydantic import BaseModel
 
 from crew_agent import nykaa_crew
 from guardrails import apply_input_guardrails
+from governance import governance_check
 import time
 from logger import create_trace_id, start_timer, write_log
 from crew_agent import validate_crew_response
@@ -60,6 +61,25 @@ def query_agent(request: QueryRequest):
         }
 
     sanitized_query = input_guardrail_result["text"]
+    governance_decision = governance_check(sanitized_query)
+
+    if not governance_decision.allowed:
+        duration_ms = (time.perf_counter() - start_time) * 1000
+
+        write_log(
+            trace_id=trace_id,
+            endpoint="/query",
+            event="governance_blocked",
+            status="blocked",
+            duration_ms=duration_ms,
+        )
+
+        return {
+            "answer": "Request blocked by governance policy.",
+            "reason": governance_decision.reason,
+            "grounded": False,
+            "trace_id": trace_id,
+        }
 
     try:
         result = nykaa_crew.kickoff(
@@ -143,6 +163,27 @@ async def websocket_endpoint(websocket: WebSocket):
                 continue
 
             sanitized_query = input_guardrail_result["text"]
+            governance_decision = governance_check(sanitized_query)
+
+            if not governance_decision.allowed:
+                duration_ms = (time.perf_counter() - start_time) * 1000
+
+                write_log(
+                    trace_id=trace_id,
+                    endpoint="/ws",
+                    event="governance_blocked",
+                    status="blocked",
+                    duration_ms=duration_ms,
+                )
+
+                await websocket.send_json({
+                    "answer": "Request blocked by governance policy.",
+                    "reason": governance_decision.reason,
+                    "grounded": False,
+                    "trace_id": trace_id,
+                })
+
+                continue
 
             try:
                 result = await nykaa_crew.kickoff_async(

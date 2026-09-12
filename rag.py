@@ -6,7 +6,7 @@ import chromadb
 #calibrated similarity threshold
 SIMILARITY_THRESHOLD = 0.30
 
-KNOWLEDGE_BASE_DIR = Path("knowledge_base") 
+KNOWLEDGE_BASE_DIR = Path("Knowledge_base") 
 
 
 def load_documents():
